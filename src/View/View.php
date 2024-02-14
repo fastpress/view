@@ -3,9 +3,10 @@
 namespace Fastpress\View;
 
 /**
- * Templating object for rendering views and layouts.
+ * Templating object
  *
  * @category   fastpress
+ *
  * @author     https://github.com/samayo
  */
 class View
@@ -18,108 +19,146 @@ class View
     /**
      * View constructor.
      *
-     * @param mixed $app Application context or configuration.
+     * @param array $conf
+     * @param mixed $app
      *
      * @throws \InvalidArgumentException
      */
-    public function __construct($app)
+    public function __construct( $app )
     {
+        if (empty($conf)) {
+            // throw new \InvalidArgumentException(
+            //     'template class requires at least one runtime configuration'
+            // );
+        }
+
+        // ($app);
+
         $this->app = $app;
+        // $this->conf = $conf;
     }
 
-    /**
-     * Set a configuration option.
-     *
-     * @param string $option Configuration option name.
-     * @param mixed $value Configuration value.
-     *
-     * @return self
-     */
-    public function set(string $option, $value = null): self
-    {
-        // Your existing logic here...
+    public function set($option, $value = null) {
+        if (strpos($option, ':')) {
+            [$index, $subset] = explode(':', $option);
+            $this->conf[$index] = [$subset => $value] + ($this->conf[$index] ?? []);
+        } else {
+            $this->conf[$option] = $value;
+        }
+
         return $this;
     }
+    
+    
 
     /**
-     * Render a view with provided variables.
+     * Render a view.
      *
-     * @param string $view The view file to render.
-     * @param array $vars Variables to pass to the view.
+     * @param string $view
+     * @param array  $vars
      *
-     * @return self
+     * @return View
      *
-     * @throws \Exception If the view file does not exist.
+     * @throws \Exception
      */
     public function render(string $view, array $vars = []): self
     {
-        // Your existing logic here...
+        // $conf = $this->conf; 
+        $app = $this->app;
+            extract($vars, EXTR_SKIP);
+            if (file_exists($view = $this->app['template']['views'] . $view)) {
+                require $view;
+            } else {
+                throw new \Exception(sprintf(
+                    "%s template does not exist in %s ",
+                    $view,
+                    $this->app['template']['views']
+                ));
+            }
         return $this;
     }
 
     /**
-     * Extend the layout with a given layout file.
+     * Extend the layout.
      *
-     * @param string $layout Layout file to extend.
+     * @param string $layout
      *
-     * @return self
+     * @return View
      */
     public function extend(string $layout): self
     {
-        // Your existing logic here...
+        $this->layout = $this->app['template']['layout'] . $layout . '.html';
         return $this;
     }
 
     /**
      * Get the content of a named block.
      *
-     * @param string $name Block name.
+     * @param string $name
      *
-     * @return void
+     * @return mixed
      */
-    public function content(string $name): void
+    public function content(string $name)
     {
-        // Your existing logic here...
+        if (array_key_exists($name, $this->block)) {
+            echo $this->data;
+        }
     }
 
     /**
-     * Set and return the layout.
+     * Set the layout and return it.
      *
-     * @param string|null $layout Layout file to use.
-     * @param array $vars Variables to pass to the layout.
+     * @param string|null $layout
+     * @param array       $vars
      *
      * @return string
+     * @todo delete
      */
-    public function layout(?string $layout = null, array $vars = []): string
+    public function layout(string $layout = null, array $vars = []): string
     {
-        // Your existing logic here...
+        $layout = $layout ? $layout : $this->layout;
+        $app = $this->app;
+        $this->layout = $this->conf['template']['layout'] . $layout;
         return $this->layout;
     }
 
     /**
-     * Start a named block for output buffering.
+     * Start a named block.
      *
-     * @param string $name Block name.
+     * @param string $name
      *
-     * @return self
+     * @return void
      */
-    public function block(string $name): self
+    public function block(string $name): View
     {
-        // Your existing logic here...
+
+        $this->block[$name] = $name;
+        ob_start();
         return $this;
     }
 
     /**
      * End a named block and include it in the layout.
      *
-     * @param string $name Block name.
+     * @param string $name
      *
      * @return void
      *
-     * @throws \Exception If the block name is unknown.
+     * @throws \Exception
      */
     public function endblock(string $name): void
     {
-        // Your existing logic here...
+        
+        if (!array_key_exists($name, $this->block)) {
+            throw new \Exception($name .' is an unknown block');
+        }
+        $app = $this->app;
+        // $conf = $this->conf;
+
+        $this->data = ob_get_contents();
+        ob_end_clean();
+
+
+        require $this->layout;
     }
 }
