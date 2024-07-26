@@ -15,6 +15,7 @@ class View
     private $data;
     private $block = [];
     private $layout = 'layout.html';
+    private $conf = [];
 
     /**
      * View constructor.
