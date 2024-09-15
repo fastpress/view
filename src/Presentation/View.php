@@ -9,28 +9,29 @@ namespace Fastpress\Presentation;
  *
  * @author     https://github.com/samayo
  */
-class View
+class View implements \ArrayAccess
 {
     private $app;
     private $data;
     private $block = [];
     private $layout = 'layout.html';
-    private $conf = [];
+
 
     /**
      * View constructor.
      *
-     * @param array $conf
      * @param mixed $app
      *
      * @throws \InvalidArgumentException
      */
-    public function __construct( $app )
+    public function __construct( &$app )
     {
         if (empty($conf)) {
             // throw new \InvalidArgumentException(
             //     'template class requires at least one runtime configuration'
             // );
+            // @todo check for template variables from $app
+            
         }
 
         // ($app);
@@ -42,12 +43,21 @@ class View
     public function set($option, $value = null) {
         if (strpos($option, ':')) {
             [$index, $subset] = explode(':', $option);
-            $this->conf[$index] = [$subset => $value] + ($this->conf[$index] ?? []);
+            $this->app->config[$index] = [$subset => $value] + ($this->app->config[$index] ?? []);
         } else {
-            $this->conf[$option] = $value;
+            $this->app->config[$option] = $value;
         }
 
-        return $this;
+    }
+
+    public function get($option) {
+        // get props from $app if user has : then explode and get the subset
+        $parts = explode(':', $option);
+        if (count($parts) > 1) {
+            return $this->app->config[$parts[0]][$parts[1]];
+        }
+        
+        return $this->app->config[$option] ?? null;
     }
     
     
@@ -118,8 +128,8 @@ class View
     public function layout(string $layout = null, array $vars = []): string
     {
         $layout = $layout ? $layout : $this->layout;
-        $app = $this->app;
-        $this->layout = $this->conf['template']['layout'] . $layout;
+        // $app = $this->app; Todo remove
+        $this->layout = $this->app['template']['layout'] . $layout;
         return $this->layout;
     }
 
@@ -161,5 +171,52 @@ class View
 
 
         require $this->layout;
+    }
+
+    /**
+     * Checks if an offset exists
+     *
+     * @param mixed $offset
+     * @return bool
+     */
+    public function offsetExists($offset): bool
+    {
+        return isset($this->app[$offset]);
+    }
+
+    /**
+     * Gets the value at the specified offset
+     *
+     * @param mixed $offset
+     * @return mixed
+     */
+    public function offsetGet($offset): mixed
+    {
+        return $this->app[$offset] ?? null;
+    }
+
+    /**
+     * Sets the value at the specified offset
+     *
+     * @param mixed $offset
+     * @param mixed $value
+     */
+    public function offsetSet($offset, $value): void
+    {
+        if (is_null($offset)) {
+            $this->app[] = $value;
+        } else {
+            $this->app[$offset] = $value;
+        }
+    }
+
+    /**
+     * Unsets the value at the specified offset
+     *
+     * @param mixed $offset
+     */
+    public function offsetUnset($offset): void
+    {
+        unset($this->app[$offset]);
     }
 }
