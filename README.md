@@ -9,59 +9,123 @@ Use [Composer](https://getcomposer.org/) to install Fastpress View into your pro
 composer require fastpress/view
 ```
 
-## Usage
+## Methods
 
-### Creating an Instance
+### `render(string $view, array $data = []): self`
 
-You can create an instance of the `View` class by passing the application context or configuration array.
+Renders a view with the given data.
 
-```php
-$app = ['template' => ['views' => '/path/to/views/', 'layout' => '/path/to/layout/']];
-$view = new \Fastpress\View\View($app);
-```
-### Setting Configuration Options
-Set configuration options using the set method:
-```php
-$view->set('option', 'value');
-```
+**Parameters:**
 
-### Rendering Views
-Render a view file with optional variables:
-```php
-$view->render('viewFile.php', ['variable' => 'value']);
-```
+- `$view`: The name of the view file.
+- `$data`: An array of data to pass to the view.
 
-### Extending Layouts
-Extend an existing layout file:
-```php
-$view->extend('layoutFile');
-```
+**Returns:**
 
-### Managing Content Blocks
-Start and end content blocks within your layout:
-```php
-$view->block('blockName');
-// ... HTML and PHP content here ...
-$view->endblock('blockName');
-```
-
-### Retrieve the content of a named block:
-```php
-$view->content('blockName');
-```
-
-### Setting and Retrieving Layouts
-Set a layout file:
-```php
-$view->layout('layoutFile');
-```
-
-## Contributing
-Contributions are welcome! Please feel free to submit a pull request or open issues to improve the library.
+- The `View` instance.
 
 
-## License
-This library is open-sourced software licensed under the MIT license.
+### `extend(string $layout): self`
 
-## Support
-If you encounter any issues or have questions, please file them in the issues section on GitHub.
+Extends a layout.
+
+**Parameters:**
+
+- `$layout`: The name of the layout file.
+
+**Returns:**
+
+- The `View` instance.
+
+
+### `block(string $name): self`
+
+Starts a template block.
+
+**Parameters:**
+
+- `$name`: The name of the block.
+
+**Returns:**
+
+- The `View` instance.
+
+
+### `endBlock(string $name = null): void`
+
+Ends a template block.
+
+**Parameters:**
+
+- `$name`: The name of the block (optional).
+
+**Returns:**
+
+- `void`
+
+
+### `content(string $name): void`
+
+Outputs the content of a template block.
+
+**Parameters:**
+
+- `$name`: The name of the block.
+
+**Returns:**
+
+- `void`
+
+
+### `share(string $key, mixed $value): self`
+
+Shares data across all views.
+
+**Parameters:**
+
+- `$key`: The key for the shared data.
+- `$value`: The value of the shared data.
+
+**Returns:**
+
+- The `View` instance.
+
+
+### `e(mixed $value): string`
+
+Escapes HTML special characters in a string.
+
+**Parameters:**
+
+- `$value`: The value to escape.
+
+**Returns:**
+
+- The escaped string.
+
+
+### `set(string $key, mixed $value = null): void`
+
+Sets an application configuration value.
+
+**Parameters:**
+
+- `$key`: The configuration key.
+- `$value`: The configuration value.
+
+**Returns:**
+
+- `void`
+
+
+### `get(string $key): mixed`
+
+Gets an application configuration value.
+
+**Parameters:**
+
+- `$key`: The configuration key.
+
+**Returns:**
+
+- The configuration value.

@@ -1,222 +1,337 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace Fastpress\Presentation;
 
 /**
- * Templating object
+ * View class for rendering templates and layouts.
  *
- * @category   fastpress
- *
- * @author     https://github.com/samayo
+ * This class provides methods for rendering views, extending layouts,
+ * defining and rendering blocks, sharing data between views, and escaping output.
+ * It also implements the ArrayAccess interface for accessing configuration data.
  */
 class View implements \ArrayAccess
 {
-    private $app;
-    private $data;
-    private $block = [];
-    private $layout = 'layout.html';
-
+    /**
+     * @var object The application instance.
+     */
+    private object $app;
 
     /**
-     * View constructor.
-     *
-     * @param mixed $app
-     *
-     * @throws \InvalidArgumentException
+     * @var array An array to store sections of content.
      */
-    public function __construct( &$app )
+    private array $sections = [];
+
+    /**
+     * @var ?string The name of the current block being rendered.
+     */
+    private ?string $currentBlock = null;
+
+    /**
+     * @var ?string The name of the layout to use.
+     */
+    private ?string $layout = null;
+
+    /**
+     * @var array An array to store data shared between views.
+     */
+    protected array $sharedData = [];
+
+    /**
+     * @var array An array to store configuration data.
+     */
+    private array $config;
+
+    /**
+     * @var object $session The session object used for managing user sessions.
+     */
+    private object $session;
+
+    /**
+     * Constructor.
+     *
+     * @param object $app The application instance.
+     */
+    public function __construct(object $app, object $session)
     {
-        if (empty($conf)) {
-            // throw new \InvalidArgumentException(
-            //     'template class requires at least one runtime configuration'
-            // );
-            // @todo check for template variables from $app
-            
-        }
-
-        // ($app);
-
         $this->app = $app;
-        // $this->conf = $conf;
+        $this->config = $app->getConfig();
+        $this->session = $session;
+        $this->validatePaths();
     }
-
-    public function set($option, $value = null) {
-        if (strpos($option, ':')) {
-            [$index, $subset] = explode(':', $option);
-            $this->app->config[$index] = [$subset => $value] + ($this->app->config[$index] ?? []);
-        } else {
-            $this->app->config[$option] = $value;
-        }
-
-    }
-
-    public function get($option) {
-        // get props from $app if user has : then explode and get the subset
-        $parts = explode(':', $option);
-        if (count($parts) > 1) {
-            return $this->app->config[$parts[0]][$parts[1]];
-        }
-        
-        return $this->app->config[$option] ?? null;
-    }
-    
-    
 
     /**
-     * Render a view.
+     * Validates the configured template paths.
      *
-     * @param string $view
-     * @param array  $vars
-     *
-     * @return View
-     *
-     * @throws \Exception
+     * @throws \RuntimeException If a required path is not configured or does not exist.
      */
-    public function render(string $view, array $vars = []): self
+    private function validatePaths(): void
     {
-        // $conf = $this->conf; 
-        $app = $this->app;
-            extract($vars, EXTR_SKIP);
-            if (file_exists($view = $this->app['template']['views'] . $view)) {
-                require $view;
-            } else {
-                throw new \Exception(sprintf(
-                    "%s template does not exist in %s ",
-                    $view,
-                    $this->app['template']['views']
-                ));
+        $config = $this->app->config();
+
+        $paths = ['views', 'layout'];
+        foreach ($paths as $path) {
+            if (!isset($config['template'][$path])) {
+                throw new \RuntimeException("Required template path '{$path}' not configured");
             }
+            if (!is_dir($config['template'][$path])) {
+                throw new \RuntimeException("Template directory '{$path}' not found");
+            }
+        }
+    }
+
+    /**
+     * Renders a view.
+     *
+     * @param string $view The name of the view file.
+     * @param array $data An array of data to pass to the view.
+     * @return self
+     * @throws \RuntimeException If the view file is not found.
+     */
+    public function render(string $view, array $data = []): self
+    {
+        try {
+            // Start output buffering
+            ob_start();
+            
+            // Extract passed data
+            extract($data, EXTR_SKIP);
+            
+            // Extract core variables for templates
+            $app = $this;  // This makes $app available in templates
+            
+            // Include the view
+            $viewPath = $this->config['template']['views'] . '/' . $view;
+            if (!file_exists($viewPath)) {
+                throw new \RuntimeException("View not found: {$view}");
+            }
+            
+            require $viewPath;
+            $content = ob_get_clean();
+
+            // If layout is set, render it
+            if ($this->layout) {
+                $layoutPath = $this->config['template']['layout'] . '/' . $this->layout . '.html';
+                if (!file_exists($layoutPath)) {
+                    throw new \RuntimeException("Layout not found: {$this->layout}");
+                }
+                require $layoutPath;
+            } else {
+                echo $content;
+            }
+
+        } catch (\Throwable $e) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            throw $e;
+        }
+
         return $this;
     }
 
     /**
-     * Extend the layout.
+     * Sets the layout to use.
      *
-     * @param string $layout
-     *
-     * @return View
+     * @param string $layout The name of the layout file.
+     * @return self
      */
     public function extend(string $layout): self
     {
-        $this->layout = $this->app['template']['layout'] . $layout . '.html';
+        $this->layout = $layout;
         return $this;
     }
 
     /**
-     * Get the content of a named block.
+     * Starts a block.
      *
-     * @param string $name
-     *
-     * @return mixed
+     * @param string $name The name of the block.
+     * @return self
      */
-    public function content(string $name)
+    public function block(string $name): self
     {
-        if (array_key_exists($name, $this->block)) {
-            echo $this->data;
-        }
-    }
-
-    /**
-     * Set the layout and return it.
-     *
-     * @param string|null $layout
-     * @param array       $vars
-     *
-     * @return string
-     * @todo delete
-     */
-    public function layout(string $layout = null, array $vars = []): string
-    {
-        $layout = $layout ? $layout : $this->layout;
-        // $app = $this->app; Todo remove
-        $this->layout = $this->app['template']['layout'] . $layout;
-        return $this->layout;
-    }
-
-    /**
-     * Start a named block.
-     *
-     * @param string $name
-     *
-     * @return void
-     */
-    public function block(string $name): View
-    {
-
-        $this->block[$name] = $name;
+        $this->currentBlock = $name;
         ob_start();
         return $this;
     }
 
     /**
-     * End a named block and include it in the layout.
+     * Ends a block.
      *
-     * @param string $name
-     *
-     * @return void
-     *
-     * @throws \Exception
+     * @param string|null $name The name of the block to end.
+     * @throws \RuntimeException If the block name is mismatched or no block is started.
      */
-    public function endblock(string $name): void
+    public function endBlock(string $name = null): void
     {
-        
-        if (!array_key_exists($name, $this->block)) {
-            throw new \Exception($name .' is an unknown block');
+        if ($name !== null && $name !== $this->currentBlock) {
+            throw new \RuntimeException('Mismatched block name');
         }
-        $app = $this->app;
-        // $conf = $this->conf;
 
-        $this->data = ob_get_contents();
-        ob_end_clean();
+        if ($this->currentBlock === null) {
+            throw new \RuntimeException('No block started');
+        }
 
-
-        require $this->layout;
+        $this->sections[$this->currentBlock] = ob_get_clean();
+        $this->currentBlock = null;
     }
 
     /**
-     * Checks if an offset exists
+     * Renders the content of a block.
      *
-     * @param mixed $offset
-     * @return bool
+     * @param string $name The name of the block.
+     */
+    public function content(string $name): void
+    {
+        echo $this->sections[$name] ?? '';
+    }
+
+    /**
+     * Gets a configuration value.
+     *
+     * @param string|null $path The path to the configuration value.
+     * @return mixed The configuration value, or null if not found.
+     */
+    public function config(string $path = null): mixed
+    {
+        if ($path === null) {
+            return $this->config;
+        }
+
+        $parts = explode('.', $path);
+        $data = $this->config;
+
+        foreach ($parts as $part) {
+            if (!isset($data[$part])) {
+                return null;
+            }
+            $data = $data[$part];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Shares data between views.
+     *
+     * @param string $key The key of the data.
+     * @param mixed $value The value of the data.
+     * @return self
+     */
+    public function share(string $key, mixed $value): self
+    {
+        $this->sharedData[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * Escapes HTML special characters in a string.
+     *
+     * @param mixed $value The value to escape.
+     * @return string The escaped string.
+     */
+    public function e(mixed $value): string
+    {
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Sets a configuration value.
+     *
+     * @param string $key The key of the configuration value.
+     * @param mixed $value The value of the configuration value.
+     */
+    public function set(string $key, mixed $value): void
+    {
+        if (str_contains($key, ':')) {
+            [$section, $key] = explode(':', $key, 2);
+            $this->config[$section][$key] = $value;
+        } elseif (str_contains($key, '.')) {
+            [$section, $key] = explode('.', $key, 2);
+            $this->config[$section][$key] = $value;
+        } else {
+            $this->config[$key] = $value;
+        }
+    }
+
+    /**
+     * Gets a configuration value.
+     *
+     * @param string $key The key of the configuration value.
+     * @return mixed The configuration value, or null if not found.
+     */
+    public function get(string $key): mixed
+    {
+        if (str_contains($key, ':')) {
+            [$index, $subset] = explode(':', $key, 2);
+            return $this->app->config[$index][$subset] ?? null;
+        }
+        return $this->app->config[$key] ?? null;
+    }
+
+    /**
+     * Retrieve the current session object.
+     *
+     * @return object The session object.
+     */
+    public function session(): object
+    {
+        return $this->session;
+    }
+
+    /**
+     * Checks if a configuration value exists.
+     *
+     * @param mixed $offset The key of the configuration value.
+     * @return bool True if the value exists, false otherwise.
      */
     public function offsetExists($offset): bool
     {
-        return isset($this->app[$offset]);
+        if ($offset === 'session') {
+            return true;
+        }
+        return isset($this->app->config[$offset]);
     }
 
     /**
-     * Gets the value at the specified offset
+     * Gets a configuration value.
      *
-     * @param mixed $offset
-     * @return mixed
+     * @param mixed $offset The key of the configuration value.
+     * @return mixed The configuration value, or null if not found.
      */
     public function offsetGet($offset): mixed
     {
-        return $this->app[$offset] ?? null;
+        if ($offset === 'session') {
+            return $this->session;
+        }
+        return $this->app->config[$offset] ?? null;
     }
 
     /**
-     * Sets the value at the specified offset
+     * Sets a configuration value.
      *
-     * @param mixed $offset
-     * @param mixed $value
+     * @param mixed $offset The key of the configuration value.
+     * @param mixed $value The value of the configuration value.
+     * @throws \RuntimeException If trying to append to the config.
      */
     public function offsetSet($offset, $value): void
     {
-        if (is_null($offset)) {
-            $this->app[] = $value;
-        } else {
-            $this->app[$offset] = $value;
+        if ($offset === 'session') {
+            throw new \RuntimeException('Cannot modify session through array access');
         }
+        $this->config[$offset] = $value;
     }
 
     /**
-     * Unsets the value at the specified offset
+     * Unsets a configuration value.
      *
-     * @param mixed $offset
+     * @param mixed $offset The key of the configuration value.
      */
     public function offsetUnset($offset): void
     {
-        unset($this->app[$offset]);
+        if ($offset === 'session') {
+            throw new \RuntimeException('Cannot unset session');
+        }
+        unset($this->config[$offset]);
     }
 }
