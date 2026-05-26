@@ -10,6 +10,8 @@ namespace Fastpress\Presentation;
  * This class provides methods for rendering views, extending layouts,
  * defining and rendering blocks, sharing data between views, and escaping output.
  * It also implements the ArrayAccess interface for accessing configuration data.
+ *
+ * @implements \ArrayAccess<string, mixed>
  */
 class View implements \ArrayAccess
 {
