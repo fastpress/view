@@ -121,6 +121,9 @@ class View implements \ArrayAccess
                 echo $content;
             }
 
+            // Reset layout for next render call
+            $this->layout = null;
+
         } catch (\Throwable $e) {
             while (ob_get_level() > 0) {
                 ob_end_clean();
@@ -263,10 +266,10 @@ class View implements \ArrayAccess
     public function get(string $key): mixed
     {
         if (str_contains($key, ':')) {
-            [$index, $subset] = explode(':', $key, 2);
-            return $this->app->config[$index][$subset] ?? null;
+            [$section, $subKey] = explode(':', $key, 2);
+            return $this->config[$section][$subKey] ?? null;
         }
-        return $this->app->config[$key] ?? null;
+        return $this->config[$key] ?? null;
     }
 
     /**
@@ -290,7 +293,7 @@ class View implements \ArrayAccess
         if ($offset === 'session') {
             return true;
         }
-        return isset($this->app->config[$offset]);
+        return isset($this->config[$offset]);
     }
 
     /**
@@ -304,7 +307,7 @@ class View implements \ArrayAccess
         if ($offset === 'session') {
             return $this->session;
         }
-        return $this->app->config[$offset] ?? null;
+        return $this->config[$offset] ?? null;
     }
 
     /**
